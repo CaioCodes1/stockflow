@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StockFlow - Produtos</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+
+      <main class="main">
+        <div class="page-head">
+          <div>
+            <h1>Produtos</h1>
+            <p>Catalogo e saldo atual</p>
+          </div>
+          <!-- Botao visivel so para ADMIN. Conveniencia de interface: o backend
+               responde 403 de qualquer forma. -->
+          <button type="button" class="btn hidden" id="btn-new">Novo produto</button>
+        </div>
+
+        <div class="filters">
+          <input type="search" class="search" id="filter-search" placeholder="Buscar por nome ou SKU..." />
+          <select id="filter-category">
+            <option value="">Todas as categorias</option>
+          </select>
+          <select id="filter-sort">
+            <option value="createdAt">Mais recentes</option>
+            <option value="name">Nome</option>
+            <option value="price">Preco</option>
+            <option value="stockQuantity">Estoque</option>
+          </select>
+          <label class="check">
+            <input type="checkbox" id="filter-low" />
+            Somente estoque baixo
+          </label>
+        </div>
+
+        <section class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Categoria</th>
+                  <th class="num">Preco</th>
+                  <th class="num">Estoque</th>
+                  <th class="num">Minimo</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span id="page-info"></span>
+            <div class="actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="prev">Anterior</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="next">Proxima</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal: criar / editar produto -->
+    <div class="modal-backdrop" id="modal-product">
+      <div class="modal">
+        <div class="modal-head">
+          <h3 id="modal-product-title">Novo produto</h3>
+          <button type="button" class="close" data-close>&times;</button>
+        </div>
+        <form id="form-product">
+          <div class="modal-body">
+            <div class="alert alert-error" id="product-alert"></div>
+
+            <div class="field">
+              <label for="p-name">Nome</label>
+              <input type="text" id="p-name" required />
+            </div>
+            <div class="field">
+              <label for="p-description">Descricao</label>
+              <input type="text" id="p-description" />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="p-sku">SKU</label>
+                <input type="text" id="p-sku" required placeholder="PER-001" />
+              </div>
+              <div class="field">
+                <label for="p-price">Preco</label>
+                <input type="number" id="p-price" step="0.01" min="0.01" required />
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="p-category">Categoria</label>
+                <select id="p-category" required></select>
+              </div>
+              <div class="field">
+                <label for="p-minimum">Estoque minimo</label>
+                <input type="number" id="p-minimum" min="0" value="0" />
+              </div>
+            </div>
+            <div class="field" id="field-initial">
+              <label for="p-initial">Estoque inicial</label>
+              <input type="number" id="p-initial" min="0" value="0" />
+              <!-- Deixa explicito na propria interface por que o estoque nao e
+                   editavel: ele e consequencia das movimentacoes. -->
+              <p class="cell-sub" style="margin-top: 6px">
+                Gera automaticamente uma movimentacao de entrada. Depois do cadastro, o estoque so muda
+                por movimentacoes.
+              </p>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+            <button type="submit" class="btn">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: registrar movimentacao -->
+    <div class="modal-backdrop" id="modal-movement">
+      <div class="modal">
+        <div class="modal-head">
+          <h3>Registrar movimentacao</h3>
+          <button type="button" class="close" data-close>&times;</button>
+        </div>
+        <form id="form-movement">
+          <div class="modal-body">
+            <div class="alert alert-error" id="movement-alert"></div>
+
+            <p style="margin-bottom: 18px">
+              <span class="cell-title" id="m-product-name"></span><br />
+              <span class="cell-sub">Estoque atual: <b id="m-current"></b></span>
+            </p>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="m-type">Tipo</label>
+                <select id="m-type">
+                  <option value="ENTRY">Entrada</option>
+                  <option value="EXIT">Saida</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="m-quantity">Quantidade</label>
+                <input type="number" id="m-quantity" min="1" value="1" required />
+              </div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+            <button type="submit" class="btn">Registrar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script type="module" src="./js/products.js"></script>
+  </body>
+</html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StockFlow - Dashboard</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+
+      <main class="main">
+        <div class="page-head">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Visao geral do estoque</p>
+          </div>
+        </div>
+
+        <!-- Todos os numeros abaixo vem de UMA chamada: GET /api/dashboard/summary -->
+        <div class="stats" id="stats"></div>
+
+        <div class="grid-2">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Produtos com estoque baixo</h2>
+              <a href="/products.html?lowStock=true" class="btn btn-secondary btn-sm">Ver todos</a>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Produto</th>
+                    <th class="num">Saldo</th>
+                    <th class="num">Minimo</th>
+                  </tr>
+                </thead>
+                <tbody id="low-stock"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Ultimas movimentacoes</h2>
+              <a href="/movements.html" class="btn btn-secondary btn-sm">Ver todas</a>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Produto</th>
+                    <th>Tipo</th>
+                    <th class="num">Qtd</th>
+                    <th>Quando</th>
+                  </tr>
+                </thead>
+                <tbody id="last-movements"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./js/dashboard.js"></script>
+  </body>
+</html>

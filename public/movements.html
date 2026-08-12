@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StockFlow - Movimentacoes</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+
+      <main class="main">
+        <div class="page-head">
+          <div>
+            <h1>Movimentacoes</h1>
+            <!-- A ausencia de botoes de editar e excluir nesta tela e proposital:
+                 movimentacao e um fato historico, corrigido por estorno. -->
+            <p>Historico completo de entradas e saidas. Registros nao podem ser editados nem excluidos.</p>
+          </div>
+        </div>
+
+        <div class="filters">
+          <select id="filter-type">
+            <option value="">Todos os tipos</option>
+            <option value="ENTRY">Somente entradas</option>
+            <option value="EXIT">Somente saidas</option>
+          </select>
+          <select id="filter-product">
+            <option value="">Todos os produtos</option>
+          </select>
+          <input type="date" id="filter-from" title="A partir de" />
+          <input type="date" id="filter-to" title="Ate" />
+        </div>
+
+        <section class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Produto</th>
+                  <th>Tipo</th>
+                  <th class="num">Quantidade</th>
+                  <th>Responsavel</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span id="page-info"></span>
+            <div class="actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="prev">Anterior</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="next">Proxima</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/movements.js"></script>
+  </body>
+</html>

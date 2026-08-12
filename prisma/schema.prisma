@@ -1,0 +1,192 @@
+// ---------------------------------------------------------------------------
+// SCHEMA DO BANCO - a fonte unica da verdade sobre a estrutura dos dados.
+//
+// Este arquivo cumpre dois papeis:
+//   1. Descreve as tabelas. `prisma migrate` traduz isto para SQL e gera um
+//      arquivo de migration versionado no Git.
+//   2. Descreve os tipos. `prisma generate` le daqui e gera o Prisma Client -
+//      por isso o autocomplete conhece `product.stockQuantity` e reclama se
+//      voce escrever `product.stokQuantity`.
+//
+// MODELO DE DADOS EM UMA FRASE:
+// Uma CATEGORIA agrupa PRODUTOS; cada MOVIMENTACAO registra que um USUARIO
+// alterou o estoque de um PRODUTO em uma quantidade, para dentro ou para fora.
+//
+//   Category 1 ---- N Product 1 ---- N StockMovement N ---- 1 User
+//
+// Em toda relacao 1:N a chave estrangeira mora do lado N: um produto guarda
+// `categoryId`; uma movimentacao guarda `productId` e `userId`. O contrario
+// seria impossivel - uma categoria teria que guardar uma lista de ids num
+// campo, e banco relacional nao trabalha assim.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Enums ------------------------------------------------------------------
+// Um enum vira um TIPO de verdade no PostgreSQL. Ganho concreto: o proprio banco
+// recusa `role = 'ADMINISTRADOR'`. Se fosse uma coluna de texto livre, um erro de
+// digitacao em qualquer ponto do sistema criaria um papel fantasma que nenhuma
+// verificacao de permissao reconheceria - e o usuario ficaria sem acesso a nada
+// ou, pior, cairia num `else` permissivo.
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum MovementType {
+  ENTRY
+  EXIT
+}
+
+// --- Usuario ----------------------------------------------------------------
+
+model User {
+  id       Int    @id @default(autoincrement())
+  name     String @db.VarChar(120)
+  // @unique cria um INDICE UNICO no banco. Duas garantias em uma linha:
+  //  1. Integridade: dois cadastros simultaneos com o mesmo email nao passam.
+  //     Checar antes com um SELECT nao basta - entre o SELECT e o INSERT existe
+  //     uma janela em que o outro cadastro pode entrar. So o banco fecha isso.
+  //  2. Desempenho: o login busca por email a cada requisicao de autenticacao.
+  email    String @unique @db.VarChar(160)
+  // Guarda o HASH bcrypt, nunca a senha. 60 caracteres no formato atual, mas
+  // reservamos 255 para caso o algoritmo mude no futuro.
+  password String @db.VarChar(255)
+  // Default EMPLOYEE: quem se cadastra pela API publica nasce com o menor
+  // privilegio possivel. Ver a explicacao sobre mass assignment em auth.service.
+  role     Role   @default(EMPLOYEE)
+
+  // Desligar alguem sem apagar o registro. Precisamos disso porque a FK das
+  // movimentacoes e RESTRICT: apagar o usuario deixaria o historico sem autor.
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Lado 1 da relacao. Este campo NAO existe como coluna - e a forma como o
+  // Prisma nos deixa navegar (`include: { movements: true }`).
+  movements StockMovement[]
+
+  @@map("users")
+}
+
+// --- Categoria --------------------------------------------------------------
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(80)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+// --- Produto ----------------------------------------------------------------
+
+model Product {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(160)
+  // `String?` = NULL permitido. Descricao e opcional; SKU e nome, nao.
+  description String? @db.VarChar(500)
+
+  // SKU (Stock Keeping Unit) e o codigo interno do produto. Unico por regra de
+  // negocio: dois cadastros com o mesmo SKU tornariam impossivel saber a qual
+  // produto uma movimentacao se refere.
+  sku String @unique @db.VarChar(60)
+
+  // DECIMAL, NUNCA FLOAT - a decisao mais importante desta tabela.
+  // Ponto flutuante nao representa 0.1 exatamente (0.1 + 0.2 da
+  // 0.30000000000000004 em JavaScript). Some isso mil vezes no valor total do
+  // estoque e o numero fica errado. `Decimal(10,2)` vira NUMERIC no Postgres:
+  // aritmetica exata em base 10, o tipo feito para dinheiro.
+  // 10 digitos no total, 2 depois da virgula -> ate 99.999.999,99.
+  price Decimal @db.Decimal(10, 2)
+
+  // O SALDO. Tecnicamente redundante: daria para calcular somando as entradas e
+  // subtraindo as saidas. Guardamos mesmo assim porque listar 50 produtos
+  // exigiria 50 agregacoes, e o saldo e lido centenas de vezes para cada vez que
+  // e escrito.
+  //
+  // O preco dessa escolha: o campo pode dessincronizar do historico se alguem
+  // escrever aqui fora de uma transacao. Por isso existe UMA UNICA porta de
+  // escrita neste campo - movement.service.js - e ela roda dentro de transacao.
+  stockQuantity Int @default(0) @map("stock_quantity")
+
+  // Limiar de reposicao. `stockQuantity <= minimumStock` significa LOW STOCK.
+  minimumStock Int @default(0) @map("minimum_stock")
+
+  categoryId Int @map("category_id")
+
+  // Exclusao logica (soft delete). `DELETE /products/:id` marca isto como false
+  // em vez de remover a linha. Motivo: um produto com 40 movimentacoes carrega
+  // 40 registros de historico; apagar a linha destruiria a auditoria - e a FK
+  // RESTRICT abaixo nem permitiria.
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // onDelete: Restrict -> o banco RECUSA apagar uma categoria que ainda tenha
+  // produtos. A alternativa Cascade apagaria os produtos junto (destrutivo
+  // demais) e SetNull deixaria produtos sem categoria (categoryId nao aceita
+  // NULL). Restrict e a politica correta aqui: o erro e melhor que a surpresa.
+  category  Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  movements StockMovement[]
+
+  // Indices: aceleram leitura e custam um pouco de escrita. So indexamos o que e
+  // filtrado ou ordenado com frequencia.
+  @@index([categoryId]) // filtro ?category=
+  @@index([name]) // ordenacao e busca por nome
+  @@map("products")
+}
+
+// --- Movimentacao de estoque ------------------------------------------------
+//
+// A tabela mais importante do sistema: e o LIVRO-RAZAO do estoque.
+// Cada linha e um fato historico e IMUTAVEL. Nao existe PATCH nem DELETE em
+// /movements: corrigir um erro significa registrar a movimentacao contraria,
+// exatamente como um estorno contabil. Apagar historico e reescrever o passado.
+//
+// Repare que esta tabela tem DUAS chaves estrangeiras para tabelas diferentes.
+// E ela que amarra "o que mudou" (produto) com "quem mudou" (usuario).
+
+model StockMovement {
+  id   Int          @id @default(autoincrement())
+  type MovementType
+
+  // SEMPRE positiva. O sentido (somar ou subtrair) vem do `type`, nao do sinal.
+  // Se aceitassemos negativo existiriam duas formas de escrever a mesma coisa
+  // (`EXIT 5` e `ENTRY -5`) e toda consulta teria que lidar com as duas.
+  quantity Int
+
+  productId Int @map("product_id")
+
+  // Quem registrou. Preenchido a partir do JWT, NUNCA do corpo da requisicao -
+  // senao qualquer pessoa registraria movimentacoes em nome de outra.
+  userId Int @map("user_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Restrict nas duas pontas: o historico nunca perde o produto nem o autor.
+  // E por isso que Product e User usam exclusao logica (`isActive`).
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // Indice COMPOSTO. Serve a consulta `GET /products/:id/movements`, que filtra
+  // por produto e ordena por data. A ordem das colunas importa: o Postgres
+  // consegue usar este indice para (productId) e para (productId, createdAt),
+  // mas nao para (createdAt) sozinho - por isso o terceiro indice existe.
+  @@index([productId, createdAt])
+  @@index([userId])
+  @@index([createdAt]) // dashboard: ultimas movimentacoes
+  @@map("stock_movements")
+}

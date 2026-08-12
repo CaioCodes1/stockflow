@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# POR QUE DOCKER NESTE PROJETO?
+#
+# Resposta curta para entrevista: para que o banco de dados seja uma DEPENDENCIA
+# DECLARADA do projeto, e nao uma instalacao manual na maquina de quem for rodar.
+#
+# Sem Docker, rodar o projeto exige: baixar o instalador do PostgreSQL, instalar,
+# lembrar a senha do usuario `postgres`, criar o banco na mao, torcer para que a
+# versao instalada seja compativel. Com Docker, um comando resolve:
+#
+#     docker compose up -d
+#
+# Ganhos concretos:
+#  * PARIDADE DE VERSAO - todo mundo roda PostgreSQL 16, inclusive o servidor.
+#  * ISOLAMENTO - este Postgres nao conflita com outro ja instalado na maquina.
+#  * DESCARTAVEL - `docker compose down -v` apaga tudo e recomeca do zero.
+#  * O banco de teste ja nasce criado (ver docker/init-test-db.sql).
+#
+# Por padrao este arquivo sobe SO O BANCO, porque em desenvolvimento a API roda
+# fora do container (com nodemon, recarregando a cada save). Para subir tambem a
+# API dentro do Docker - como seria em producao:
+#
+#     docker compose --profile full up --build
+# ---------------------------------------------------------------------------
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: stockflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stockflow
+      POSTGRES_PASSWORD: stockflow
+      POSTGRES_DB: stockflow
+    ports:
+      # host:container. Expor a 5432 permite que a API rodando fora do Docker
+      # (e o Prisma Studio, e o DBeaver) enxerguem o banco em localhost:5432.
+      - '5432:5432'
+    volumes:
+      # Volume nomeado: os dados SOBREVIVEM a `docker compose down`.
+      # Para apagar de verdade: `docker compose down -v`.
+      - stockflow_pgdata:/var/lib/postgresql/data
+      # Tudo que esta em /docker-entrypoint-initdb.d roda UMA VEZ, na primeira
+      # criacao do volume. E assim que o banco de teste nasce pronto.
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+      - ./prisma/sql:/sql:ro
+    healthcheck:
+      # Sem isto, o container aparece como "started" antes de o Postgres aceitar
+      # conexoes - e a API tentaria conectar cedo demais e morrer.
+      test: ['CMD-SHELL', 'pg_isready -U stockflow -d stockflow']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    # `profiles` deixa este servico DESLIGADO por padrao.
+    # So sobe com: docker compose --profile full up --build
+    profiles: ['full']
+    build: .
+    container_name: stockflow-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Dentro da rede do Compose, o host do banco e o NOME DO SERVICO (`db`),
+      # nao `localhost` - cada container tem sua propria interface de rede.
+      DATABASE_URL: 'postgresql://stockflow:stockflow@db:5432/stockflow?schema=public'
+      JWT_SECRET: ${JWT_SECRET:-troque-este-valor-em-producao}
+      JWT_EXPIRES_IN: 8h
+      CORS_ORIGIN: '*'
+      LOG_LEVEL: info
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        # Espera o healthcheck passar, nao apenas o container existir.
+        condition: service_healthy
+
+volumes:
+  stockflow_pgdata:
