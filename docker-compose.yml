@@ -43,7 +43,6 @@ services:
       # Tudo que esta em /docker-entrypoint-initdb.d roda UMA VEZ, na primeira
       # criacao do volume. E assim que o banco de teste nasce pronto.
       - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
-      - ./prisma/sql:/sql:ro
     healthcheck:
       # Sem isto, o container aparece como "started" antes de o Postgres aceitar
       # conexoes - e a API tentaria conectar cedo demais e morrer.

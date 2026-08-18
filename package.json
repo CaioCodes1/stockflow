@@ -12,7 +12,7 @@
     "db:seed": "node prisma/seed.js",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "db:constraints": "docker compose exec -T db psql -U stockflow -d stockflow -f /sql/constraints.sql",
+    "db:constraints": "node prisma/constraints.js",
     "generate": "prisma generate",
     "test": "node --test \"tests/**/*.test.js\"",
     "test:unit": "node --test \"tests/unit/**/*.test.js\"",
