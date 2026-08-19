@@ -88,7 +88,5 @@ O refactor de 18/08 é uma coisa só, em três arquivos: `prisma/constraints.js`
 dentro do container enxergar o `.sql`. O `constraints.sql` continua sendo a
 fonte da verdade — mudou apenas quem o executa.
 
-Somam-se a esses o commit do próprio `CLAUDE.md` (`4fc5155`). **Nada disso foi
-enviado**: o local está `ahead 2` de `origin/main`
-(`github.com/CaioCodes1/stockflow`) — o `push` falha porque a formatação apagou
-as credenciais do GitHub.
+Somam-se a esses os commits do próprio `CLAUDE.md` (`4fc5155`, `bc9dd64`). Tudo
+já foi enviado para `github.com/CaioCodes1/stockflow` — local e remoto em dia.
