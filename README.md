@@ -32,6 +32,7 @@ MVP com poucas funcionalidades, implementadas com o rigor de um sistema real.
 - [Variáveis de ambiente](#variáveis-de-ambiente)
 - [Estrutura de pastas](#estrutura-de-pastas)
 - [Testes](#testes)
+- [Dependências e segurança](#dependências-e-segurança)
 - [Docker](#docker)
 - [Screenshots](#screenshots)
 - [Conceitos de backend praticados](#conceitos-de-backend-praticados)
@@ -734,6 +735,66 @@ zeradas entre os testes — nenhum teste pode depender do que outro deixou para 
 | Dashboard bate com o estoque | Agregações corretas |
 
 ---
+
+## Dependências e segurança
+
+```bash
+npm audit
+```
+
+Uma auditoria apontou **três falhas altas**. As três eram a mesma coisa contada
+de três formas: `prisma` → `@prisma/config` → `deepmerge-ts`, com uma
+**exaustão de pilha** ao mesclar objetos que se referenciam em ciclo. É essa
+mescla que junta a configuração do Prisma — e este projeto usa
+`package.json#prisma`, então o caminho é percorrido de verdade.
+
+### Por que a correção sugerida não servia
+
+O `npm audit` dizia `fixAvailable: true`, mas rodar `npm audit fix` não mudava
+nada: ele reinstalava o Prisma e continuava reportando as mesmas três.
+
+O motivo aparece ao olhar quem exige o quê. A versão corrigida do
+`deepmerge-ts` é a 8, e **nenhuma** versão do Prisma pede a 8 — nem a 6.19.3,
+nem a 7.10.0, que era a mais nova estável na época:
+
+```
+prisma@6.19.3 -> @prisma/config@6.19.3 -> deepmerge-ts@7.1.5
+prisma@7.10.0 -> @prisma/config@7.10.0 -> deepmerge-ts@7.1.5
+```
+
+Ou seja: atualizar o Prisma nunca resolveria. O `fixAvailable: true` estava
+errado, e seguir a sugestão do relatório sem conferir a árvore levaria a um
+upgrade grande, arriscado e inútil.
+
+### O que foi feito
+
+Um `overrides` no `package.json` força a versão corrigida por baixo do Prisma:
+
+```json
+"overrides": {
+  "deepmerge-ts": "^8.0.2"
+}
+```
+
+`overrides` é uma ferramenta que merece desconfiança — ela passa por cima do
+que o mantenedor declarou, e um salto de versão maior é exatamente onde a
+biblioteca muda de comportamento. Por isso a troca só ficou de pé depois de
+verificada:
+
+| Verificação | Resultado |
+|---|---|
+| `npx prisma validate` | schema válido |
+| `npx prisma generate` | client gerado |
+| `npm run test:unit` | 7/7 |
+| `import('./src/app.js')` | carrega sem erro |
+| `npm audit` | 0 vulnerabilidades |
+
+O `prisma validate` é o que mais vale aqui: ele avisa que o projeto usa
+`package.json#prisma`, o que confirma que a mescla de configuração — justamente
+o código que usa o `deepmerge-ts` — foi executada e funcionou.
+
+Quando o Prisma passar a exigir o `deepmerge-ts@8` por conta própria, o
+`overrides` deixa de ser necessário e deve ser removido.
 
 ## Docker
 
